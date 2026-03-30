@@ -1,0 +1,38 @@
+{
+  "name": "nkart",
+  "version": "1.0.0",
+  "description": "N Kart — 3D kart racing for the N Games Network",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win portable",
+    "server": "node server/index.js"
+  },
+  "build": {
+    "appId": "com.ngames.nkart",
+    "productName": "N Kart",
+    "win": {
+      "target": "portable",
+      "artifactName": "NKart-portable.exe"
+    },
+    "files": [
+      "client/**/*",
+      "main.js",
+      "preload.js",
+      "ngames.js",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "howler": "^2.2.4",
+    "socket.io-client": "^4.7.4",
+    "three": "^0.128.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "serve": "^14.2.6"
+  }
+}

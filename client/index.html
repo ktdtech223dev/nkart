@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N Kart</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f0f0f;
+      overflow: hidden;
+      font-family: 'Rajdhani', sans-serif;
+      color: #fff;
+      user-select: none;
+    }
+    #titlebar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 32px;
+      background: rgba(15, 15, 15, 0.9);
+      display: flex; align-items: center; justify-content: space-between;
+      -webkit-app-region: drag;
+      z-index: 10000;
+      padding: 0 8px;
+    }
+    #titlebar .title { font-size: 13px; font-weight: 600; color: #888; letter-spacing: 1px; }
+    #titlebar .controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+    #titlebar .controls button {
+      width: 40px; height: 32px; border: none; background: transparent;
+      color: #888; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    #titlebar .controls button:hover { background: #333; color: #fff; }
+    #titlebar .controls button.close:hover { background: #e04040; color: #fff; }
+    #game-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+
+    /* Menu overlay */
+    #menu-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 100;
+      background: rgba(15, 15, 15, 0.95);
+    }
+    #menu-overlay.hidden { display: none; }
+    #menu-overlay h1 {
+      font-size: 72px; font-weight: 700; letter-spacing: 4px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #80e060, #40c0e0, #f0c040, #e04040);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    #menu-overlay .subtitle { color: #666; font-size: 18px; margin-bottom: 48px; letter-spacing: 2px; }
+    .menu-btn {
+      width: 280px; padding: 14px 0; margin: 6px 0;
+      background: #1a1d23; border: 1px solid #2a2d33;
+      color: #fff; font-family: 'Rajdhani', sans-serif; font-size: 20px; font-weight: 600;
+      cursor: pointer; letter-spacing: 1px; transition: all 0.15s;
+    }
+    .menu-btn:hover { background: #252830; border-color: #80e060; color: #80e060; }
+    .menu-btn:disabled { opacity: 0.3; cursor: default; }
+    .menu-btn:disabled:hover { background: #1a1d23; border-color: #2a2d33; color: #fff; }
+
+    /* Profile select */
+    #profile-select {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 200; background: #0f0f0f;
+    }
+    #profile-select.hidden { display: none; }
+    #profile-select h2 { font-size: 28px; margin-bottom: 32px; color: #aaa; letter-spacing: 2px; }
+    .profile-grid { display: flex; gap: 16px; }
+    .profile-card {
+      width: 140px; height: 180px; background: #1a1d23; border: 2px solid #2a2d33;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .profile-card:hover { transform: translateY(-4px); }
+    .profile-card .initial {
+      width: 64px; height: 64px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; font-weight: 700; margin-bottom: 12px;
+    }
+    .profile-card .name { font-size: 18px; font-weight: 600; }
+
+    /* Car select */
+    #car-select {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 150; background: rgba(15, 15, 15, 0.97);
+    }
+    #car-select.hidden { display: none; }
+    #car-select h2 { font-size: 28px; margin-bottom: 8px; letter-spacing: 2px; }
+    #car-select .car-name { font-size: 22px; color: #aaa; margin-bottom: 24px; }
+    #car-select .car-stats { display: flex; gap: 24px; margin-bottom: 32px; }
+    .stat-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .stat-bar label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-bar .bar { width: 80px; height: 6px; background: #1a1d23; border-radius: 3px; overflow: hidden; }
+    .stat-bar .bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .car-nav { display: flex; gap: 24px; align-items: center; }
+    .car-nav button {
+      width: 48px; height: 48px; background: #1a1d23; border: 1px solid #2a2d33;
+      color: #fff; font-size: 24px; cursor: pointer;
+    }
+    .car-nav button:hover { border-color: #80e060; color: #80e060; }
+    .car-preview { width: 300px; height: 200px; display: flex; align-items: center; justify-content: center; }
+
+    /* HUD */
+    #hud { position: fixed; top: 32px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
+    #hud.hidden { display: none; }
+    #hud-position {
+      position: absolute; top: 16px; left: 24px;
+      font-size: 56px; font-weight: 700; line-height: 1;
+    }
+    #hud-position .suffix { font-size: 24px; vertical-align: super; }
+    #hud-lap { position: absolute; top: 80px; left: 24px; font-size: 20px; color: #aaa; }
+    #hud-timer { position: absolute; top: 106px; left: 24px; font-size: 18px; color: #666; font-variant-numeric: tabular-nums; }
+    #hud-speed {
+      position: absolute; bottom: 24px; right: 24px;
+      font-size: 48px; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    #hud-speed .unit { font-size: 16px; color: #888; }
+    #hud-item {
+      position: absolute; bottom: 24px; left: 24px;
+      width: 64px; height: 64px; background: #1a1d23; border: 2px solid #2a2d33;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+    }
+    #hud-item.empty { opacity: 0.3; }
+    #hud-countdown {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 120px; font-weight: 700; opacity: 0; transition: opacity 0.15s;
+    }
+    #hud-minimap {
+      position: absolute; top: 16px; right: 24px;
+      width: 160px; height: 160px; background: rgba(26, 29, 35, 0.8);
+      border: 1px solid #2a2d33;
+    }
+    #minimap-canvas { width: 100%; height: 100%; }
+    #hud-speedclass {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      font-size: 16px; color: #666; letter-spacing: 2px;
+    }
+    #hud-center-msg {
+      position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+      font-size: 36px; font-weight: 700; opacity: 0; transition: opacity 0.3s;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    }
+
+    /* Results */
+    #results-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 150; background: rgba(15, 15, 15, 0.95);
+    }
+    #results-overlay.hidden { display: none; }
+    #results-overlay h2 { font-size: 36px; margin-bottom: 24px; }
+    #results-table { border-collapse: collapse; margin-bottom: 32px; }
+    #results-table th, #results-table td {
+      padding: 8px 20px; text-align: left; font-size: 18px;
+      border-bottom: 1px solid #1a1d23;
+    }
+    #results-table th { color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    .results-buttons { display: flex; gap: 12px; }
+
+    /* GP / TA select overlays */
+    #online-lobby {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 160; background: rgba(15, 15, 15, 0.97);
+    }
+    #online-lobby.hidden { display: none; }
+    .lobby-player {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px; background: #1a1d23; border: 1px solid #2a2d33; min-width: 200px;
+    }
+    .lobby-player .lp-initial {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700;
+    }
+    .lobby-player .lp-name { font-size: 15px; flex: 1; }
+    .lobby-player .lp-ready { font-size: 12px; color: #80e060; }
+    .lobby-player .lp-host { font-size: 11px; color: #f0c040; margin-left: 4px; }
+
+    #gp-select, #ta-select, #gp-standings, #gp-final {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 150; background: rgba(15, 15, 15, 0.97);
+    }
+    #gp-select.hidden, #ta-select.hidden, #gp-standings.hidden, #gp-final.hidden { display: none; }
+    .cup-card {
+      width: 150px; padding: 16px 12px; background: #1a1d23; border: 2px solid #2a2d33;
+      text-align: center; cursor: pointer; transition: all 0.15s;
+    }
+    .cup-card:hover { transform: translateY(-4px); border-color: #80e060; }
+    .cup-card .cup-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .cup-card .cup-tracks { font-size: 12px; color: #666; }
+    .cup-card .cup-medal { font-size: 22px; margin-top: 6px; }
+    .cup-card.locked { opacity: 0.35; pointer-events: none; }
+    .track-card {
+      width: 150px; padding: 12px; background: #1a1d23; border: 2px solid #2a2d33;
+      text-align: center; cursor: pointer; transition: all 0.15s; font-size: 14px;
+    }
+    .track-card:hover { transform: translateY(-3px); border-color: #40c0e0; }
+    .track-card .track-name { font-weight: 600; margin-bottom: 2px; }
+    .track-card .track-cup { font-size: 11px; color: #666; }
+    .track-card .track-record { font-size: 12px; color: #888; margin-top: 4px; }
+    #gp-standings-table th, #gp-standings-table td,
+    #gp-final-table th, #gp-final-table td {
+      padding: 6px 18px; text-align: left; font-size: 17px;
+      border-bottom: 1px solid #1a1d23;
+    }
+    #gp-standings-table th, #gp-final-table th {
+      color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="titlebar">
+    <span class="title">N KART</span>
+    <div class="controls">
+      <button onclick="window.electron?.minimize()">&#x2013;</button>
+      <button onclick="window.electron?.maximize()">&#9633;</button>
+      <button class="close" onclick="window.electron?.close()">&#10005;</button>
+    </div>
+  </div>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="profile-select">
+    <h2>SELECT PROFILE</h2>
+    <div class="profile-grid">
+      <div class="profile-card" onclick="selectProfile('keshawn')" style="--c:#80e060">
+        <div class="initial" style="background:#80e060;color:#0f0f0f">K</div>
+        <div class="name">Keshawn</div>
+      </div>
+      <div class="profile-card" onclick="selectProfile('sean')" style="--c:#f0c040">
+        <div class="initial" style="background:#f0c040;color:#0f0f0f">S</div>
+        <div class="name">Sean</div>
+      </div>
+      <div class="profile-card" onclick="selectProfile('dart')" style="--c:#e04040">
+        <div class="initial" style="background:#e04040;color:#0f0f0f">D</div>
+        <div class="name">Dart</div>
+      </div>
+      <div class="profile-card" onclick="selectProfile('amari')" style="--c:#40c0e0">
+        <div class="initial" style="background:#40c0e0;color:#0f0f0f">A</div>
+        <div class="name">Amari</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="menu-overlay" class="hidden">
+    <h1>N KART</h1>
+    <div class="subtitle">N GAMES NETWORK</div>
+    <button class="menu-btn" onclick="startVSRace()">VS RACE</button>
+    <button class="menu-btn" onclick="showGPSelect()">GRAND PRIX</button>
+    <button class="menu-btn" onclick="showTASelect()">TIME ATTACK</button>
+    <button class="menu-btn" onclick="showOnlineLobby()">ONLINE</button>
+    <button class="menu-btn" disabled>SETTINGS</button>
+  </div>
+
+  <!-- Grand Prix cup select -->
+  <div id="gp-select" class="hidden">
+    <h2 style="font-size:28px;margin-bottom:24px;letter-spacing:2px;">SELECT CUP</h2>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:32px;" id="gp-cups"></div>
+    <div style="display:flex;gap:16px;margin-bottom:16px;">
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Speed</div>
+        <select id="gp-speed" style="background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:8px 16px;font-family:'Rajdhani',sans-serif;font-size:16px;">
+          <option value="100cc">100cc</option>
+          <option value="150cc" selected>150cc</option>
+          <option value="200cc">200cc</option>
+        </select>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Difficulty</div>
+        <select id="gp-diff" style="background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:8px 16px;font-family:'Rajdhani',sans-serif;font-size:16px;">
+          <option value="Easy">Easy</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="Hard">Hard</option>
+          <option value="Unfair">Unfair</option>
+        </select>
+      </div>
+    </div>
+    <button class="menu-btn" onclick="hideGPSelect()" style="width:180px;">BACK</button>
+  </div>
+
+  <!-- Time Attack track select -->
+  <div id="ta-select" class="hidden">
+    <h2 style="font-size:28px;margin-bottom:24px;letter-spacing:2px;">TIME ATTACK</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:700px;margin-bottom:32px;" id="ta-tracks"></div>
+    <button class="menu-btn" onclick="hideTASelect()" style="width:180px;">BACK</button>
+  </div>
+
+  <!-- GP standings between races -->
+  <div id="gp-standings" class="hidden">
+    <h2 style="font-size:28px;margin-bottom:8px;letter-spacing:2px;" id="gp-standings-title">CUP STANDINGS</h2>
+    <div style="font-size:16px;color:#888;margin-bottom:16px;" id="gp-standings-sub"></div>
+    <table id="gp-standings-table" style="border-collapse:collapse;margin-bottom:24px;"></table>
+    <button class="menu-btn" id="gp-next-btn" style="width:220px;">NEXT RACE</button>
+  </div>
+
+  <!-- GP final results -->
+  <div id="gp-final" class="hidden">
+    <h2 style="font-size:36px;margin-bottom:8px;" id="gp-final-title"></h2>
+    <div style="font-size:18px;margin-bottom:24px;" id="gp-final-medal"></div>
+    <table id="gp-final-table" style="border-collapse:collapse;margin-bottom:24px;"></table>
+    <button class="menu-btn" onclick="endGrandPrix()" style="width:220px;">MAIN MENU</button>
+  </div>
+
+  <!-- Online Lobby -->
+  <div id="online-lobby" class="hidden">
+    <h2 style="font-size:28px;margin-bottom:6px;letter-spacing:2px;">ONLINE LOBBY</h2>
+    <div id="lobby-status" style="font-size:14px;color:#888;margin-bottom:20px;">Connecting...</div>
+    <div style="display:flex;gap:32px;align-items:flex-start;">
+      <!-- Players list -->
+      <div style="min-width:220px;">
+        <div style="font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Players</div>
+        <div id="lobby-players" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <!-- Settings (host only) -->
+      <div id="lobby-settings-panel" style="min-width:200px;">
+        <div style="font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Settings</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <label style="font-size:13px;color:#aaa;">Track
+            <select id="lobby-track" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+            </select>
+          </label>
+          <label style="font-size:13px;color:#aaa;">Speed
+            <select id="lobby-speed" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+              <option value="100cc">100cc</option><option value="150cc" selected>150cc</option><option value="200cc">200cc</option>
+            </select>
+          </label>
+          <label style="font-size:13px;color:#aaa;">Laps
+            <select id="lobby-laps" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+              <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="5">5</option>
+            </select>
+          </label>
+          <label style="font-size:13px;color:#aaa;">Items
+            <select id="lobby-items" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+              <option>Normal</option><option>No Blue Shell</option><option>Shells Only</option><option>Chaos</option><option>No Items</option>
+            </select>
+          </label>
+          <label style="font-size:13px;color:#aaa;">Bots
+            <select id="lobby-bots" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+              <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option>
+            </select>
+          </label>
+          <label style="font-size:13px;color:#aaa;">Bot Difficulty
+            <select id="lobby-diff" style="display:block;width:100%;background:#1a1d23;color:#fff;border:1px solid #2a2d33;padding:6px 10px;font-family:'Rajdhani',sans-serif;font-size:14px;margin-top:2px;">
+              <option>Easy</option><option selected>Medium</option><option>Hard</option><option>Unfair</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:24px;">
+      <button class="menu-btn" id="lobby-ready-btn" onclick="toggleReady()" style="width:180px;">READY</button>
+      <button class="menu-btn" id="lobby-start-btn" onclick="requestOnlineStart()" style="width:180px;display:none;">START RACE</button>
+      <button class="menu-btn" onclick="leaveOnlineLobby()" style="width:180px;">LEAVE</button>
+    </div>
+  </div>
+
+  <div id="car-select" class="hidden"></div>
+  <div id="hud" class="hidden">
+    <div id="hud-position">1<span class="suffix">st</span></div>
+    <div id="hud-lap">Lap 1/3</div>
+    <div id="hud-timer">0:00.000</div>
+    <div id="hud-speedclass">150cc</div>
+    <div id="hud-minimap"><canvas id="minimap-canvas" width="160" height="160"></canvas></div>
+    <div id="hud-speed">0 <span class="unit">km/h</span></div>
+    <div id="hud-item" class="empty"></div>
+    <div id="hud-countdown"></div>
+    <div id="hud-center-msg"></div>
+  </div>
+  <div id="results-overlay" class="hidden"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="../ngames.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/cars/nissan_350z.js"></script>
+  <script src="src/cars/nissan_gtr.js"></script>
+  <script src="src/cars/bmw_m8.js"></script>
+  <script src="src/cars/corvette_c6.js"></script>
+  <script src="src/cars/shopping_cart.js"></script>
+  <script src="src/cars/lawnmower.js"></script>
+  <script src="src/cars/f1_car.js"></script>
+  <script src="src/cars/school_bus.js"></script>
+  <script src="src/cars/golf_cart.js"></script>
+  <script src="src/kart.js"></script>
+  <script src="src/track.js"></script>
+  <script src="src/items.js"></script>
+  <script src="src/particles.js"></script>
+  <script src="src/ai.js"></script>
+  <script src="src/race.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="src/audio.js"></script>
+  <script src="src/network.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
