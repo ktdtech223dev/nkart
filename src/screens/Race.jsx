@@ -82,7 +82,9 @@ function startAIDriver(game, trackId) {
       tz = nextCp.position.z;
     } else if (wps.length > 0) {
       const wp = wps[ks.currentCheckpoint % wps.length];
-      tx = wp.x; tz = wp.z;
+      // Support both old format (wp.x/wp.z) and new TrackSplineBuilder format (wp.position)
+      tx = wp.position?.x ?? wp.x;
+      tz = wp.position?.z ?? wp.z;
     } else {
       return;
     }
