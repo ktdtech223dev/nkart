@@ -1,12 +1,6 @@
-import { toon, TOON, getGradientMap } from '../../materials/ToonMaterials.js';
 import * as THREE from 'three';
-import { TrackBuilder } from '../../track/TrackBuilder.js';
-
-// ---------------------------------------------------------------------------
-// JUNGLE CANOPY  –  Nature Cup, Race 1
-// Dense jungle canopy track woven through giant trees, vine bridges, and
-// tropical foliage. Branch-wood surface. Green-tinted lighting. Fireflies.
-// ---------------------------------------------------------------------------
+import { TrackSplineBuilder } from '../../track/TrackSplineBuilder.js';
+import { toon, TOON } from '../../materials/ToonMaterials.js';
 
 export const track = {
   id: 'jungle_canopy',
@@ -15,374 +9,222 @@ export const track = {
   cupIndex: 0,
   lapCount: 3,
   music: 'track_nature_01',
-
   skyConfig: {
-    topColor:    0x1a3d0a,
-    bottomColor: 0x0d2206,
-    fogColor:    0x1a3d0a,
-    fogDensity:  0.014,
+    topColor:    0x1a3a0a,
+    bottomColor: 0x2a5a14,
+    fogColor:    0x3a7020,
+    fogDensity:  0.01,
   },
 
   buildGeometry(scene) {
-    const ROAD_WIDTH = 12;
-    const SEGMENTS   = 220;
+    const controlPoints = [
+      { pos: new THREE.Vector3( 38,  8,   0) },
+      { pos: new THREE.Vector3( 46, 14,  18) },
+      { pos: new THREE.Vector3( 38, 20,  36), surfaceType: 'dirt' },
+      { pos: new THREE.Vector3( 20, 24,  48), surfaceType: 'dirt' },
+      { pos: new THREE.Vector3(  0, 18,  46) },
+      { pos: new THREE.Vector3(-20, 22,  38) },
+      { pos: new THREE.Vector3(-40, 16,  20) },
+      { pos: new THREE.Vector3(-46, 10,   0) },
+      { pos: new THREE.Vector3(-40, 16, -20), surfaceType: 'dirt' },
+      { pos: new THREE.Vector3(-20, 22, -38), surfaceType: 'dirt' },
+      { pos: new THREE.Vector3(  0, 18, -46) },
+      { pos: new THREE.Vector3( 20, 24, -48) },
+      { pos: new THREE.Vector3( 38, 20, -36) },
+      { pos: new THREE.Vector3( 46, 14, -18) },
+    ];
 
-    // ------------------------------------------------------------------ CURVE
-    // Winding canopy path through giant tree trunks, slight elevation changes.
-    const curve = new THREE.CatmullRomCurve3(
-      [
-        new THREE.Vector3(  0,  0,  38),
-        new THREE.Vector3( 20,  0,  32),
-        new THREE.Vector3( 34,  0,  14),
-        new THREE.Vector3( 38,  0,  -8),
-        new THREE.Vector3( 30,  0, -26),
-        new THREE.Vector3( 12,  0, -34),
-        new THREE.Vector3( -8,  0, -32),
-        new THREE.Vector3(-24,  0, -18),
-        new THREE.Vector3(-35,  0,   2),
-        new THREE.Vector3(-32,  0,  20),
-        new THREE.Vector3(-18,  0,  34),
-      ],
-      true,
-      'catmullrom',
-      0.5
+    const trackData = TrackSplineBuilder.buildTrack(controlPoints, {
+      closed:       true,
+      segments:     280,
+      defaultWidth: 11,
+      wallHeight:   1.5,
+    });
+
+    scene.add(trackData.roadMesh);
+    scene.add(trackData.curbsMesh);
+    scene.add(trackData.walls.visual);
+    scene.add(trackData.collisionMesh);
+
+    // Ground plane — jungle floor far below
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(300, 300),
+      toon(0x2a5a0a)
     );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.5;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
-    // ------------------------------------------------------------------ SCENE ROOT
-    const trackGroup = new THREE.Group();
-    scene.add(trackGroup);
+    // Lighting — dappled green canopy
+    const ambient = new THREE.AmbientLight(0x44aa22, 0.5);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xffffaa, 1.2);
+    sun.position.set(30, 60, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 200;
+    sun.shadow.camera.left = -80;
+    sun.shadow.camera.right = 80;
+    sun.shadow.camera.top = 80;
+    sun.shadow.camera.bottom = -80;
+    scene.add(sun);
 
-    // ------------------------------------------------------------------ SKY + FOG
-    TrackBuilder.createSky(
-      scene,
-      track.skyConfig.topColor,
-      track.skyConfig.bottomColor,
-      track.skyConfig.fogColor,
-      track.skyConfig.fogDensity
-    );
-
-    // ------------------------------------------------------------------ LIGHTING
-    // Green-tinted ambient – light filtering through dense canopy
-    TrackBuilder.createLighting(
-      scene,
-      0x2d6e1a, 0.8,         // ambient – green-tinted
-      0x88cc44, 1.2,         // directional – dappled canopy light
-      [10, 60, 20],
-      true
-    );
-    // Warm fill from below (forest floor reflection)
-    const fillLight = new THREE.PointLight(0x44aa22, 0.5, 100);
+    // Warm forest floor fill
+    const fillLight = new THREE.PointLight(0x44aa22, 0.4, 100);
     fillLight.position.set(0, 0, 0);
     scene.add(fillLight);
 
-    // ------------------------------------------------------------------ GROUND
-    // Deep forest floor far below the canopy
-    const groundMat = toon('#1a3306');
-    const groundGeo = new THREE.PlaneGeometry(300, 300);
-    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-    groundMesh.rotation.x = -Math.PI / 2;
-    groundMesh.position.y = -20;
-    groundMesh.receiveShadow = true;
-    scene.add(groundMesh);
+    // Props
 
-    // Canopy floor (the branch/bark platforms the track sits on)
-    const canopyFloorMat = toon('#3d2008');
-    const canopyFloor = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), canopyFloorMat);
-    canopyFloor.rotation.x = -Math.PI / 2;
-    canopyFloor.position.y = 6.0;
-    canopyFloor.receiveShadow = true;
-    scene.add(canopyFloor);
-
-    // ------------------------------------------------------------------ ROAD (branch wood surface)
-    const roadGeo  = TrackBuilder.buildRoad(curve, ROAD_WIDTH, SEGMENTS, 0.05);
-    const roadMat  = toon('#5c3310'); // dark bark brown
-    const roadMesh = new THREE.Mesh(roadGeo, roadMat);
-    roadMesh.receiveShadow = true;
-    trackGroup.add(roadMesh);
-
-    // Wood grain centre stripe
-    const centreGeo = TrackBuilder.buildRoad(curve, 0.7, SEGMENTS, 0.09);
-    const centreMesh = new THREE.Mesh(
-      centreGeo,
-      toon('#7a4820', { transparent: true, opacity: 0.6 })
-    );
-    trackGroup.add(centreMesh);
-
-    // ------------------------------------------------------------------ WALLS (vine walls)
-    const walls = TrackBuilder.buildWalls(curve, ROAD_WIDTH, SEGMENTS, 1.2, 0x2d5a0e);
-    trackGroup.add(walls.visual);
-
-    // ------------------------------------------------------------------ COLLISION
-    const collisionGeo  = TrackBuilder.buildRoad(curve, ROAD_WIDTH + 2, SEGMENTS, 0);
-    const collisionMesh = new THREE.Mesh(
-      collisionGeo.clone(),
-      new THREE.MeshBasicMaterial({ visible: false })
-    );
-    trackGroup.add(collisionMesh);
-    const wallMesh = walls.collision;
-    trackGroup.add(wallMesh);
-
-    // ================================================================== PROPS
-    const mat = (hex, emissive = 0x000000) => {
-      const m = toon('#' + (hex >>> 0).toString(16).padStart(6, '0'));
-      if (emissive !== 0x000000) { m.emissive = new THREE.Color(emissive); }
-      return m;
-    };
-
-    // --- 1. Giant tree trunks (tall cylinders, scattered around)
-    const trunkPositions = [
-      [ 45,  0,  20], [-45,  0, -20], [ 20,  0, -45],
-      [-20,  0,  45], [ 45,  0, -30], [-45,  0,  30],
+    // 5 tree trunk cylinders — radius 3-4, color 0x5C3317
+    const trunkData = [
+      { x:  52, z:  18, r: 4 },
+      { x: -52, z: -18, r: 3.5 },
+      { x:  18, z: -54, r: 4 },
+      { x: -18, z:  54, r: 3 },
+      { x:  52, z: -30, r: 3.5 },
     ];
-    trunkPositions.forEach(([tx, ty, tz]) => {
+    trunkData.forEach(({ x, z, r }) => {
       const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(4, 5, 60, 10),
-        mat(0x3d1f05)
+        new THREE.CylinderGeometry(r, r + 1, 55, 10),
+        toon(0x5C3317)
       );
-      trunk.position.set(tx, ty + 30, tz);
+      trunk.position.set(x, 27, z);
       trunk.castShadow = true;
       scene.add(trunk);
-
-      // Bark texture stripes
-      for (let b = 0; b < 6; b++) {
-        const barkStripe = new THREE.Mesh(
-          new THREE.CylinderGeometry(4.1, 5.1, 0.5, 10, 1, true),
-          mat(0x2a1403)
+      // Bark stripes
+      for (let b = 0; b < 5; b++) {
+        const stripe = new THREE.Mesh(
+          new THREE.CylinderGeometry(r + 0.1, r + 1.1, 0.5, 10, 1, true),
+          toon(0x3a1e0a)
         );
-        barkStripe.position.set(tx, ty + 5 + b * 9, tz);
-        scene.add(barkStripe);
+        stripe.position.set(x, 5 + b * 9, z);
+        scene.add(stripe);
       }
     });
 
-    // --- 2. Giant tropical leaves (flat ellipses built from scaled planes)
-    const leafMat = mat(0x2d7d0f);
-    const darkLeafMat = mat(0x1a5208);
-    const leafPositions = [
-      [ 30,  18,  15,  0.4], [-30,  22, -18, -0.3], [ 10,  20, -30,  0.6],
-      [-15,  16,  30, -0.2], [ 40,  14, -10,  0.5], [-40,  20,  10, -0.6],
-      [ 20,  25,  20,  0.1], [-20,  18, -25,  0.3],
+    // 4 large leaf clusters — SphereGeometry flattened, color 0x228B22
+    const leafData = [
+      { x:  40, y: 28, z:  25 },
+      { x: -40, y: 32, z: -25 },
+      { x:  20, y: 30, z: -55 },
+      { x: -20, y: 26, z:  55 },
     ];
-    leafPositions.forEach(([lx, ly, lz, rot]) => {
-      // Main leaf blade
-      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(10, 4), leafMat);
-      leaf.position.set(lx, ly, lz);
-      leaf.rotation.set(-0.3 + Math.random() * 0.2, rot, 0.2 * Math.random());
-      leaf.castShadow = true;
-      scene.add(leaf);
-      // Smaller dark underside droop
-      const leafB = new THREE.Mesh(new THREE.PlaneGeometry(8, 3), darkLeafMat);
-      leafB.position.set(lx + 1, ly - 0.5, lz + 1);
-      leafB.rotation.set(-0.5, rot + 0.2, 0.1);
-      scene.add(leafB);
-    });
-
-    // --- 3. Hanging vines (thin long cylinders)
-    const vineMat = mat(0x3a6b12);
-    const vinePositions = [
-      [ 15,  35,  5], [-10,  38, -15], [ 35,  32, -5],
-      [-35,  35,  10], [ 5,  36,  35], [-25,  34, 20],
-    ];
-    vinePositions.forEach(([vx, vy, vz]) => {
-      const vineLen = 18 + Math.random() * 12;
-      const vine = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.15, vineLen, 6),
-        vineMat
+    leafData.forEach(({ x, y, z }) => {
+      const cluster = new THREE.Mesh(
+        new THREE.SphereGeometry(10, 10, 6),
+        toon(0x228B22)
       );
-      vine.position.set(vx, vy - vineLen / 2, vz);
-      vine.rotation.z = (Math.random() - 0.5) * 0.3;
+      cluster.scale.set(1.5, 0.35, 1.5);
+      cluster.position.set(x, y, z);
+      cluster.castShadow = true;
+      scene.add(cluster);
+      // Darker underside
+      const under = new THREE.Mesh(
+        new THREE.SphereGeometry(9.5, 10, 6),
+        toon(0x165a16)
+      );
+      under.scale.set(1.4, 0.25, 1.4);
+      under.position.set(x, y - 2, z);
+      scene.add(under);
+    });
+
+    // Hanging vines (thin cylinders)
+    const vineData = [
+      { x:  15, y: 38, z:   5 },
+      { x: -10, y: 40, z: -15 },
+      { x:  32, y: 35, z: -10 },
+      { x: -32, y: 38, z:  12 },
+    ];
+    vineData.forEach(({ x, y, z }) => {
+      const len = 20 + Math.random() * 10;
+      const vine = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.14, len, 6),
+        toon(0x3a6b12)
+      );
+      vine.position.set(x, y - len / 2, z);
+      vine.rotation.z = (Math.random() - 0.5) * 0.25;
       scene.add(vine);
-
-      // Vine node bumps
-      for (let n = 0; n < 4; n++) {
-        const node = new THREE.Mesh(
-          new THREE.SphereGeometry(0.24, 6, 4),
-          mat(0x2e5c0e)
-        );
-        node.position.set(vx, vy - 4 - n * 4, vz);
-        scene.add(node);
-      }
     });
 
-    // --- 4. Macaws (colourful birds – layered box bodies + wings)
-    const macawData = [
-      { pos: [22, 18,  8], bodyCol: 0xff2222, wingCol: 0x0044ff },
-      { pos: [-18, 20, -22], bodyCol: 0x22cc11, wingCol: 0xff9900 },
-      { pos: [35, 16, -12], bodyCol: 0xffcc00, wingCol: 0xff2200 },
-    ];
-    macawData.forEach(({ pos: [mx, my, mz], bodyCol, wingCol }) => {
-      // Body
-      const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 0.7), mat(bodyCol));
-      body.position.set(mx, my, mz);
-      body.castShadow = true;
-      scene.add(body);
-      // Wings (flat planes angled out)
-      [-1, 1].forEach(side => {
-        const wing = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.8), mat(wingCol));
-        wing.position.set(mx + side * 1.4, my, mz);
-        wing.rotation.set(0, 0, side * 0.5);
-        scene.add(wing);
-      });
-      // Beak (small cone)
-      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 6), mat(0xffdd00));
-      beak.position.set(mx, my + 0.5, mz + 0.5);
-      beak.rotation.x = Math.PI / 2;
-      scene.add(beak);
-    });
-
-    // --- 5. Giant tropical flowers (cones + spheres)
+    // Tropical flowers
     const flowerData = [
-      { pos: [-12, 12,  18], petalCol: 0xff4499, centreCol: 0xffee00 },
-      { pos: [ 28, 14, -20], petalCol: 0xff7700, centreCol: 0xff2200 },
-      { pos: [-30, 10,   5], petalCol: 0xee22cc, centreCol: 0xffff00 },
-      { pos: [  8, 13,  30], petalCol: 0xff0066, centreCol: 0xffffff },
+      { x: -12, y: 16, z:  18, petal: 0xff4499 },
+      { x:  28, y: 18, z: -20, petal: 0xff7700 },
+      { x: -30, y: 14, z:   5, petal: 0xee22cc },
+      { x:   8, y: 16, z:  30, petal: 0xff0066 },
     ];
-    flowerData.forEach(({ pos: [fx, fy, fz], petalCol, centreCol }) => {
-      // Petals (cones arranged radially)
+    flowerData.forEach(({ x, y, z, petal }) => {
       for (let p = 0; p < 6; p++) {
         const angle = (p / 6) * Math.PI * 2;
-        const petal = new THREE.Mesh(
-          new THREE.ConeGeometry(0.8, 3, 6),
-          mat(petalCol)
+        const petalMesh = new THREE.Mesh(
+          new THREE.ConeGeometry(0.7, 2.8, 6),
+          toon(petal)
         );
-        petal.position.set(
-          fx + Math.cos(angle) * 2,
-          fy,
-          fz + Math.sin(angle) * 2
+        petalMesh.position.set(
+          x + Math.cos(angle) * 1.8,
+          y,
+          z + Math.sin(angle) * 1.8
         );
-        petal.rotation.z = Math.cos(angle) * 0.8;
-        petal.rotation.x = -Math.sin(angle) * 0.8;
-        scene.add(petal);
+        petalMesh.rotation.z = Math.cos(angle) * 0.8;
+        petalMesh.rotation.x = -Math.sin(angle) * 0.8;
+        scene.add(petalMesh);
       }
-      // Flower centre
-      const centre = new THREE.Mesh(new THREE.SphereGeometry(1.2, 10, 8), mat(centreCol, 0x442200));
-      centre.position.set(fx, fy + 0.5, fz);
-      centre.castShadow = true;
+      const centre = new THREE.Mesh(
+        new THREE.SphereGeometry(1.1, 10, 8),
+        toon(0xffee00)
+      );
+      centre.position.set(x, y + 0.4, z);
       scene.add(centre);
-      // Stem
-      const stem = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.2, 0.2, 5, 6),
-        mat(0x2d7d0f)
-      );
-      stem.position.set(fx, fy - 2.5, fz);
-      scene.add(stem);
     });
 
-    // --- 6. Waterfall (white translucent plane cascade)
-    const waterfallMat = toon('#aaddff', { transparent: true, opacity: 0.7 });
-    const wfBase = new THREE.Mesh(new THREE.PlaneGeometry(6, 20), waterfallMat);
-    wfBase.position.set(-42, 8, -38);
-    wfBase.rotation.y = 0.5;
-    scene.add(wfBase);
-    // Mist pool
-    const mistPool = new THREE.Mesh(
-      new THREE.CylinderGeometry(4, 4, 0.4, 16),
-      toon('#88ccff', { transparent: true, opacity: 0.4 })
-    );
-    mistPool.position.set(-41, -2, -40);
-    scene.add(mistPool);
-    // Waterfall point light (blue-white)
-    const wfLight = new THREE.PointLight(0x88ccff, 0.8, 30);
-    wfLight.position.set(-42, 6, -38);
-    scene.add(wfLight);
-
-    // --- 7. Vine bridge section (planks + rope sides)
-    const plankMat = mat(0x6b3a10);
-    const ropeMat  = mat(0x7a5c2e);
-    // Bridge planks across a gap around position (-5, 9, -20)
-    for (let b = 0; b < 10; b++) {
-      const plank = new THREE.Mesh(
-        new THREE.BoxGeometry(ROAD_WIDTH + 2, 0.3, 1.0),
-        plankMat
-      );
-      plank.position.set(-5 + b * 0.1, 8.3, -12 - b * 1.1);
-      plank.rotation.y = 0.02 * b;
-      scene.add(plank);
-    }
-    // Rope sides
-    [-7, 7].forEach(side => {
-      for (let r = 0; r < 5; r++) {
-        const rope = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.12, 0.12, 10, 5),
-          ropeMat
-        );
-        rope.position.set(-5 + side, 10, -14 - r * 2.2);
-        rope.rotation.z = Math.PI / 2;
-        rope.rotation.y = 0.05;
-        scene.add(rope);
-      }
-    });
-
-    // --- 8. Tree trunk hollow arch (half-cylinder tunnel)
-    const hollowMat = mat(0x2a1403);
-    const hollowArch = new THREE.Mesh(
-      new THREE.CylinderGeometry(6, 6, 3, 12, 1, true, 0, Math.PI),
-      hollowMat
-    );
-    hollowArch.position.set(20, 11, -14);
-    hollowArch.rotation.y = Math.PI / 4;
-    scene.add(hollowArch);
-
-    // Hollow interior darkness
-    const hollowInner = new THREE.Mesh(
-      new THREE.CylinderGeometry(5.5, 5.5, 3, 12, 1, true, 0, Math.PI),
-      mat(0x0d0a05)
-    );
-    hollowInner.position.set(20, 11, -14);
-    hollowInner.rotation.y = Math.PI / 4;
-    scene.add(hollowInner);
-
-    // ------------------------------------------------------------------ FIREFLY PARTICLES
-    const fireflyGeo = new THREE.BufferGeometry();
-    const ffPositions = new Float32Array(100 * 3);
-    for (let i = 0; i < 100; i++) {
-      ffPositions[i * 3]     = (Math.random() - 0.5) * 80;
-      ffPositions[i * 3 + 1] = 6 + Math.random() * 20;
-      ffPositions[i * 3 + 2] = (Math.random() - 0.5) * 80;
-    }
-    fireflyGeo.setAttribute('position', new THREE.BufferAttribute(ffPositions, 3));
-    const fireflyMat = new THREE.PointsMaterial({
-      color: 0xccff44,
-      size: 0.25,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-    });
-    const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
-    scene.add(fireflies);
-
-    // General canopy atmosphere particles (pollen/spores)
-    TrackBuilder.createParticles(scene, {
-      count:  60,
-      spread: 70,
-      color:  '#aaffaa',
-      size:   0.12,
-      speed:  0.015,
-    });
-
-    // ------------------------------------------------------------------ NAVIGATION DATA
-    const checkpoints      = TrackBuilder.generateCheckpoints(curve, 16, ROAD_WIDTH);
-    const startPositions   = TrackBuilder.generateStartPositions(curve, 8);
-    const itemBoxPositions = TrackBuilder.generateItemBoxPositions(curve, 12);
-    const waypointPath     = TrackBuilder.generateWaypoints(curve, 100);
-
-    const surfaceZones = [
-      { type: 'wood', traction: 0.88, friction: 0.78 },
+    // Macaw birds (box bodies + wings)
+    const macawData = [
+      { x:  22, y: 22,  z:  8, body: 0xff2222, wing: 0x0044ff },
+      { x: -18, y: 24,  z: -22, body: 0x22cc11, wing: 0xff9900 },
+      { x:  35, y: 20,  z: -12, body: 0xffcc00, wing: 0xff2200 },
     ];
+    macawData.forEach(({ x, y, z, body, wing }) => {
+      const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 0.7), toon(body));
+      bodyMesh.position.set(x, y, z);
+      bodyMesh.castShadow = true;
+      scene.add(bodyMesh);
+      [-1, 1].forEach(side => {
+        const wingMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.8), toon(wing));
+        wingMesh.position.set(x + side * 1.4, y, z);
+        wingMesh.rotation.z = side * 0.5;
+        scene.add(wingMesh);
+      });
+    });
 
-    const hazards = [];
+    // Firefly particles
+    const fireflyGeo = new THREE.BufferGeometry();
+    const ffPos = new Float32Array(100 * 3);
+    for (let i = 0; i < 100; i++) {
+      ffPos[i * 3]     = (Math.random() - 0.5) * 90;
+      ffPos[i * 3 + 1] = 8 + Math.random() * 22;
+      ffPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+    }
+    fireflyGeo.setAttribute('position', new THREE.BufferAttribute(ffPos, 3));
+    scene.add(new THREE.Points(fireflyGeo, new THREE.PointsMaterial({
+      color: 0xccff44, size: 0.25, transparent: true, opacity: 0.85, depthWrite: false,
+    })));
 
     return {
-      collisionMesh,
-      wallMesh,
-      trackGroup,
-      curve,
-      checkpoints,
-      startPositions,
-      itemBoxPositions,
-      waypointPath,
-      surfaceZones,
-      hazards,
-      respawnY: -10,
+      collisionMesh:    trackData.collisionMesh,
+      walls:            trackData.walls,
+      curve:            trackData.curve,
+      checkpoints:      trackData.checkpoints,
+      startPositions:   trackData.startPositions,
+      itemBoxPositions: trackData.itemBoxPositions,
+      waypointPath:     trackData.waypoints,
+      hazards:          [],
+      respawnY:         -8,
     };
   },
 };
+
+export default track;

@@ -42,6 +42,12 @@ export class TrackLoader {
     }
 
     const result = { ...trackDef, ...trackData };
+
+    // Normalize wall mesh reference — support both old (wallMesh) and new (walls.collision) formats
+    if (!result.wallMesh && result.walls?.collision) {
+      result.wallMesh = result.walls.collision;
+    }
+
     this.loadedTracks.set(trackId, result);
     this.currentTrack = result;
     return result;

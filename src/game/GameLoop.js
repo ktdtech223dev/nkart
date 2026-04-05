@@ -16,6 +16,7 @@ import { PostProcessingPipeline } from '../game/PostProcessing.js';
 import { PerformanceMonitor } from '../game/PerformanceMonitor.js';
 import { ForceFeedback } from '../input/ForceFeedback.js';
 import { PHYSICS } from '../constants/physics.js';
+import { BotWaypointAI } from '../ai/BotWaypointAI.js';
 
 const PHYSICS_TIMESTEP = 1 / 60;
 const MAX_PHYSICS_STEPS = 5;
@@ -66,6 +67,9 @@ export class GameLoop {
     this.localAvatar = null;
     this.currentTrack = null;
 
+    // Bot kart state
+    this.botKarts = [];   // [{ state, group, avatar, ai }]
+
     this.raceState = {
       started: false,
       finished: false,
@@ -90,6 +94,19 @@ export class GameLoop {
   async loadTrack(trackId) {
     const trackDef = await this.trackLoader.load(trackId, this.scene);
     this.currentTrack = trackDef;
+
+    // Apply per-track sky and fog
+    if (trackDef.skyConfig) {
+      const sky = trackDef.skyConfig;
+      const fogColor = new THREE.Color(sky.fogColor ?? sky.bottomColor ?? 0x87ceeb);
+      this.scene.background = new THREE.Color(sky.topColor ?? 0x87ceeb);
+      this.scene.fog = new THREE.Fog(fogColor, 60, 200);
+      if (sky.fogDensity && sky.fogDensity < 0.01) {
+        // Wide open tracks — push fog further out
+        this.scene.fog = new THREE.Fog(fogColor, 80, 300);
+      }
+    }
+
     this.checkpoints.init(trackDef.checkpoints, trackDef.lapCount);
     this.itemBoxManager.init(trackDef.itemBoxPositions, this.scene);
     this.hazardManager.init(trackDef.hazards, this.scene);
@@ -117,6 +134,41 @@ export class GameLoop {
         this.postProcessing.collectSceneObjects();
       }
     }, 100);
+  }
+
+  /**
+   * Add AI bot karts to the race.
+   * @param {number} count - number of bots (1-7)
+   * @param {string} difficulty - 'easy' | 'medium' | 'hard' | 'expert'
+   */
+  addBots(count = 3, difficulty = 'medium') {
+    if (!this.currentTrack || !this.currentTrack.waypointPath) return;
+    const waypoints = this.currentTrack.waypointPath;
+    const startPositions = this.currentTrack.startPositions;
+
+    // Clear existing bots
+    for (const bot of this.botKarts) {
+      if (bot.group) this.scene.remove(bot.group);
+    }
+    this.botKarts = [];
+
+    const botCount = Math.min(count, startPositions.length - 1);
+    for (let i = 0; i < botCount; i++) {
+      const startIdx   = i + 1; // slot 0 is player
+      const startPos   = startPositions[startIdx] || startPositions[0];
+      const kartGroup  = this.kartRenderer.build(this.scene);
+      kartGroup.position.copy(startPos.position);
+      kartGroup.rotation.y = startPos.heading;
+
+      const avatar = this.avatarRenderer.build('volta');
+      avatar.position.y = 0.3;
+      kartGroup.add(avatar);
+
+      const kartState = this.physics.createKartState(startPos.position, startPos.heading);
+      const ai        = new BotWaypointAI(kartState, waypoints, difficulty);
+
+      this.botKarts.push({ state: kartState, group: kartGroup, avatar, ai });
+    }
   }
 
   start() {
@@ -242,6 +294,24 @@ export class GameLoop {
       this.forceFeedback.updateFromKartState(this.localKartState);
     }
 
+    // ── Bot karts ────────────────────────────────────────────────────────────
+    if (this.botKarts.length > 0) {
+      const allKartStates = [this.localKartState, ...this.botKarts.map(b => b.state)].filter(Boolean);
+      for (const bot of this.botKarts) {
+        bot.state.prevPosition.copy(bot.state.position);
+        const botInput = bot.ai.update(dt, this.physics, this.currentTrack, allKartStates);
+        this.physics.update(bot.state, botInput, dt, this.currentTrack);
+        this.checkpoints.update(bot.state);
+        bot.group.position.copy(bot.state.position);
+        bot.group.rotation.y = bot.state.rotation.y + Math.PI;
+        this.kartRenderer.updateWheels(bot.group, bot.state.speed, botInput.steer, dt);
+        this.avatarRenderer.update(bot.avatar, bot.state, botInput, dt);
+        if (bot.state.driftState !== 'none' && bot.state.speed > 5) {
+          this.particles.spawnDriftSmoke(bot.state.position, bot.state.driftState);
+        }
+      }
+    }
+
     this.hazardManager.update(dt);
     this.itemRenderer.update(dt);
     this.particles.update(dt);
@@ -254,6 +324,14 @@ export class GameLoop {
       if (prevPosition) {
         const lerpedPos = new THREE.Vector3().lerpVectors(prevPosition, this.localKartState.position, alpha);
         this.localKartGroup.position.copy(lerpedPos);
+      }
+    }
+
+    // Interpolate bot karts
+    for (const bot of this.botKarts) {
+      if (bot.group && bot.state.prevPosition && bot.state.position) {
+        const lerpedPos = new THREE.Vector3().lerpVectors(bot.state.prevPosition, bot.state.position, alpha);
+        bot.group.position.copy(lerpedPos);
       }
     }
 
@@ -371,6 +449,11 @@ export class GameLoop {
   dispose() {
     this.stop();
     window.removeEventListener('resize', this._onResize);
+    // Remove bot karts from scene
+    for (const bot of this.botKarts) {
+      if (bot.group) this.scene.remove(bot.group);
+    }
+    this.botKarts = [];
     this.input.dispose();
     this.audio.dispose();
     this.network.dispose();
